@@ -76,9 +76,10 @@
          is_stream_end/1,
          is_bosh_report/2,
          is_enabled/1, is_enabled/2,
-         is_failed/1,
+         is_failed/2,
          is_ack/1, is_ack/2,
          is_ack_request/1,
+         is_resumed/1,
          is_resumed/2,
          has_ns/2,
          is_compressed/1
@@ -177,7 +178,7 @@ has_carbon(Type, From, To, Msg, Stanza) ->
 is_forwarded_message(From, To, Msg, #xmlel{name = <<"forwarded">>} = Stanza) ->
     has_ns(?NS_FORWARD_0, Stanza)
     andalso
-    is_chat_message_from_to(From, To, Msg, 
+    is_chat_message_from_to(From, To, Msg,
                             exml_query:subelement(Stanza, <<"message">>)).
 
 -spec is_chat_message(binary(), xmlterm()) -> boolean().
@@ -229,7 +230,7 @@ has_type(Type, Stanza) ->
 is_0184_request(#xmlel{children = Els}) ->
     #xmlel{ name = <<"request">>,
             attrs = [{<<"xmlns">>, <<"urn:xmpp:receipts">>}],
-            children = [] } =:= lists:keyfind(<<"request">>, 2, Els). 
+            children = [] } =:= lists:keyfind(<<"request">>, 2, Els).
 
 -spec is_0184_receipt(xmlterm(), xmlterm()) -> boolean().
 is_0184_receipt(#xmlel{ attrs = ReqAttrs } = Request, Receipt) ->
@@ -524,19 +525,19 @@ is_enabled(#xmlel{name = <<"enabled">>} = Stanza) ->
 is_enabled(_) ->
     false.
 
-is_failed(#xmlel{name = <<"failed">>} = Stanza) ->
+is_failed(Type, #xmlel{name = <<"failed">>} = Stanza) ->
     has_ns(?NS_STREAM_MGNT_3, Stanza)
     andalso
     begin
-        Unexpected = exml_query:subelement(Stanza, <<"unexpected-request">>),
-        is_unexpected_request(Unexpected)
+        Subelem = exml_query:subelement(Stanza, Type),
+        is_stanza_error(Type, Subelem)
     end;
-is_failed(_) ->
+is_failed(_, _) ->
     false.
 
-is_unexpected_request(#xmlel{name = <<"unexpected-request">>} = Stanza) ->
+is_stanza_error(Type, #xmlel{name = T} = Stanza) when Type =:= T ->
     has_ns(?NS_STANZA_ERRORS, Stanza);
-is_unexpected_request(_) ->
+is_stanza_error(_, _) ->
     false.
 
 is_ack(#xmlel{name = <<"a">>} = Stanza) ->
@@ -554,6 +555,14 @@ is_ack(_, _) ->
 is_ack_request(#xmlel{name = <<"r">>} = Stanza) ->
     has_ns(?NS_STREAM_MGNT_3, Stanza);
 is_ack_request(_) ->
+    false.
+
+is_resumed(#xmlel{name = <<"resumed">>} = Stanza) ->
+    %% Less strict checking (no SMID verification)
+    has_ns(?NS_STREAM_MGNT_3, Stanza)
+    andalso
+    exml_query:attr(Stanza, <<"h">>) /= undefined;
+is_resumed(_) ->
     false.
 
 is_resumed(SMID, #xmlel{name = <<"resumed">>} = Stanza) ->
@@ -597,4 +606,3 @@ get_roster_items(Stanza) ->
 -spec has_path(xmlterm(), exml_query:path()) -> boolean().
 has_path(Stanza, Path) ->
     exml_query:path(Stanza, Path) /= undefined.
-
