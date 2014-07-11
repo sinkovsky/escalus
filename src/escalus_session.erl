@@ -18,6 +18,7 @@
 %% New style connection initiation
 -export([start_stream/3,
          maybe_use_ssl/3,
+         maybe_use_carbons/3,
          maybe_use_compression/3,
          maybe_stream_management/3,
          maybe_stream_resumption/3,
@@ -45,7 +46,7 @@
                        features()}.
 -export_type([step_state/0]).
 
--include_lib("exml/include/exml.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 -define(DEFAULT_RESOURCE, <<"escalus-default-resource">>).
 
 %%%===================================================================
@@ -65,9 +66,23 @@ start_stream(Conn, Props) ->
                      end,
     ok = escalus_connection:send(Conn, StreamStartReq),
     StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
-    %% FIXME: verify StreamStartRep
+    case StreamStartRep of
+       #xmlstreamend{} ->
+           error("Stream terminated by server");
+       #xmlstreamstart{} ->
+           ok
+    end,
     StreamFeatures = escalus_connection:get_stanza(Conn, wait_for_features),
-    %% FIXME: verify StreamFeatures
+    case StreamFeatures of
+       #xmlel{name = <<"stream:features">>} ->
+           ok;
+       _ ->
+           error(
+             lists:flatten(
+               io_lib:format(
+                 "Expected stream features, got ~p",
+                 [StreamFeatures])))
+    end,
     {Props, get_stream_features(StreamFeatures)}.
 
 starttls(Conn, Props) ->
@@ -124,6 +139,10 @@ can_use_stream_management(Props, Features) ->
     false /= proplists:get_value(stream_management, Props, false) andalso
     false /= proplists:get_value(stream_management, Features).
 
+can_use_carbons(Props, Features) ->
+    false /= proplists:get_value(carbons, Props, false).
+
+
 %%%===================================================================
 %%% New style connection initiation
 %%%===================================================================
@@ -142,6 +161,22 @@ maybe_use_ssl(Conn, Props, Features) ->
         false ->
             {Conn, Props, Features}
     end.
+
+-spec maybe_use_carbons/3 :: ?CONNECTION_STEP.
+maybe_use_carbons(Conn, Props, Features) ->
+    case can_use_carbons(Props, Features) of
+        true ->
+            use_carbons(Conn, Props, Features);
+        false ->
+            {Conn, Props, Features}
+    end.
+
+-spec use_carbons/3 :: ?CONNECTION_STEP.
+use_carbons(Conn, Props, Features) ->
+    escalus_connection:send(Conn, escalus_stanza:carbons_enable()),
+    Result = escalus_connection:get_stanza(Conn, carbon_iq_response),
+    escalus:assert(is_iq, [<<"result">>], Result),
+    {Conn, Props, Features}.
 
 -spec maybe_use_compression/3 :: ?CONNECTION_STEP.
 maybe_use_compression(Conn, Props, Features) ->
