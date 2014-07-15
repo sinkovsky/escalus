@@ -15,6 +15,7 @@
 %% Low-level API
 -export([connect/1,
          send/2,
+         get_stanza/3,
          get_stanza/2,
          get_sm_h/1,
          set_sm_h/2,
@@ -129,10 +130,14 @@ send(#transport{module = Mod, event_client = EventClient} = Transport, Elem) ->
 
 -spec get_stanza(transport(), any()) -> #xmlel{}.
 get_stanza(Conn, Name) ->
+    get_stanza(Conn, Name, ?TIMEOUT).
+
+-spec get_stanza(transport(), any(), any()) -> #xmlel{}.
+get_stanza(Conn, Name, Timeout) ->
     receive
         {stanza, Conn, Stanza} ->
             Stanza
-    after ?TIMEOUT ->
+    after Timeout ->
             throw({timeout, Name})
     end.
 

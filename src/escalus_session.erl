@@ -65,7 +65,7 @@ start_stream(Conn, Props) ->
                          _ -> escalus_stanza:stream_start(Server, XMLNS)
                      end,
     ok = escalus_connection:send(Conn, StreamStartReq),
-    StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
+    StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream, 10000),
     case StreamStartRep of
        #xmlstreamend{} ->
            error("Stream terminated by server");

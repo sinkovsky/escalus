@@ -78,7 +78,7 @@ set_sm_h(#transport{rcv_pid = Pid}, H) ->
 
 stop(#transport{rcv_pid = Pid}) ->
     try
-        gen_server:call(Pid, stop)
+        gen_server:call(Pid, stop, 30000)
     catch
         exit:{noproc, {gen_server, call, _}} ->
             already_stopped
@@ -93,7 +93,7 @@ upgrade_to_tls(#transport{socket = Socket, rcv_pid = Pid} = Conn, Props) ->
     gen_tcp:send(Socket, exml:to_iolist(Starttls)),
     escalus_connection:get_stanza(Conn, proceed),
     SSLOpts = proplists:get_value(ssl_opts, Props, []),
-    gen_server:call(Pid, {upgrade_to_tls, SSLOpts}),
+    gen_server:call(Pid, {upgrade_to_tls, SSLOpts}, 30000),
     Conn2 = get_transport(Conn),
     {Props2, _} = escalus_session:start_stream(Conn2, Props),
     {Conn2, Props2}.
